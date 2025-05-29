@@ -3,43 +3,56 @@
 
 import { useState, useEffect } from 'react';
 
-export function useCountdown(targetTimestamp?: number) {
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+interface CountdownResult {
+  secondsRemaining: number | null;
+}
+
+export function useCountdown(targetTimestamp?: number): CountdownResult {
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     if (!targetTimestamp) {
-      setTimeLeft(null);
+      setSecondsRemaining(null);
       return;
     }
+
+    let timerId: NodeJS.Timeout;
 
     const calculateTimeLeft = () => {
       const now = Date.now();
       const difference = targetTimestamp - now;
-      
+
       if (difference <= 0) {
-        setTimeLeft(0); // Time is up or in the past
-        return 0;
+        setSecondsRemaining(0);
+        return 0; // Indicate to stop interval
       }
-      
-      const minutes = Math.floor(difference / (1000 * 60));
-      setTimeLeft(minutes);
-      return difference;
+
+      const remainingSec = Math.max(0, Math.floor(difference / 1000));
+      setSecondsRemaining(remainingSec);
+      return difference; // Return full difference for interval check
     };
 
     // Initial calculation
     const initialDifference = calculateTimeLeft();
-    if (initialDifference <= 0) return;
-
-
-    const timer = setInterval(() => {
-      const difference = calculateTimeLeft();
-      if (difference <= 0) {
-        clearInterval(timer);
+    
+    if (initialDifference <= 0) {
+      // If time is already up or in the past on initial load, ensure state is 0 and don't start interval
+      if (secondsRemaining !== 0) { // Only set if not already 0 to avoid potential loop with initialDifference being 0
+         setSecondsRemaining(0);
       }
-    }, 60000); // Update every minute
+      return;
+    }
 
-    return () => clearInterval(timer);
-  }, [targetTimestamp]);
+    // Start interval only if there's time remaining
+    timerId = setInterval(() => {
+      const diff = calculateTimeLeft();
+      if (diff <= 0) {
+        clearInterval(timerId);
+      }
+    }, 1000); // Update every second
 
-  return timeLeft;
+    return () => clearInterval(timerId);
+  }, [targetTimestamp]); // Rerun effect if targetTimestamp changes
+
+  return { secondsRemaining };
 }
